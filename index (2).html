@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tasin TV</title>
+<style>
+  /* Kept intentionally simple: no animations, no heavy CSS, small payload */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+    background: #0d0f14;
+    color: #eaeaea;
+    font-size: 15px;
+    line-height: 1.4;
+  }
+  header {
+    background: #14171f;
+    padding: 14px 12px;
+    border-bottom: 2px solid #d0021b;
+    text-align: center;
+  }
+  header h1 {
+    font-size: 20px;
+    color: #ffffff;
+    letter-spacing: 0.5px;
+  }
+  header p {
+    font-size: 12px;
+    color: #9aa0aa;
+    margin-top: 2px;
+  }
+  .notice {
+    background: #1b1e27;
+    border-left: 3px solid #d0021b;
+    padding: 8px 10px;
+    font-size: 12px;
+    color: #c9cdd3;
+    margin: 10px;
+  }
+  .player-wrap {
+    margin: 10px;
+    background: #000;
+    border: 1px solid #262a33;
+  }
+  video {
+    width: 100%;
+    display: block;
+    background: #000;
+    max-height: 240px;
+  }
+  .player-label {
+    padding: 6px 10px;
+    font-size: 13px;
+    background: #14171f;
+    color: #fff;
+    border-top: 1px solid #262a33;
+  }
+  .channel-list {
+    margin: 10px;
+  }
+  .channel-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #14171f;
+    border: 1px solid #262a33;
+    border-top: none;
+    padding: 10px;
+  }
+  .channel-item:first-child {
+    border-top: 1px solid #262a33;
+  }
+  .channel-name {
+    font-size: 14px;
+    color: #eaeaea;
+  }
+  .live-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background: #d0021b;
+    border-radius: 50%;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+  .watch-btn {
+    background: #d0021b;
+    color: #fff;
+    border: none;
+    padding: 8px 14px;
+    font-size: 13px;
+  }
+  .watch-btn:focus {
+    outline: 3px solid #ffffff;
+    background: #ff2a3f;
+  }
+  footer {
+    text-align: center;
+    padding: 16px 10px;
+    font-size: 12px;
+    color: #8a8f98;
+    border-top: 1px solid #262a33;
+    margin-top: 10px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Tasin TV</h1>
+  <p>Watch Live Sports - Movies - Entertainment</p>
+</header>
+
+<div class="notice">
+  Channels may take a few seconds to load. If a channel doesn't work, please try again shortly.
+</div>
+
+<div class="player-wrap">
+  <video id="player" controls playsinline></video>
+  <div class="player-label" id="nowPlaying">Select a channel</div>
+</div>
+
+<div class="channel-list">
+  <div class="channel-item">
+    <span class="channel-name"><span class="live-dot"></span>Channel 1</span>
+    <button class="watch-btn" data-src="https://tvsen7.aynascope.net/Sports1/tracks-v1a1/mono.ts.m3u8" tabindex="1">WATCH</button>
+  </div>
+  <div class="channel-item">
+    <span class="channel-name"><span class="live-dot"></span>Channel 2</span>
+    <button class="watch-btn" data-src="https://warm-caverns-48629-92fab798385f.herokuapp.com/https://d36r8jifhgsk5j.cloudfront.net/Willow_TV540p.m3u8">WATCH</button>
+  </div>
+  <div class="channel-item">
+    <span class="channel-name"><span class="live-dot"></span>Channel 3</span>
+    <button class="watch-btn" data-src="https://footfytv.pro/proxy/direct?url=http%3A%2F%2F103.165.93.31%3A8095%2FjalshaMovies%2Ftracks-v1a1%2Fmono.m3u8">WATCH</button>
+  </div>
+  <div class="channel-item">
+    <span class="channel-name"><span class="live-dot"></span>Channel 4</span>
+    <button class="watch-btn" data-src="https://cdn-4.pishow.tv/live/1143/1143_1.m3u8">WATCH</button>
+  </div>
+  <div class="channel-item">
+    <span class="channel-name"><span class="live-dot"></span>Channel 5</span>
+    <button class="watch-btn" data-src="https://tvsen5.aynaott.com/P3y2URgG7LDe/tracks-v1a1/mono.ts.m3u8">WATCH</button>
+  </div>
+  <div class="channel-item">
+    <span class="channel-name"><span class="live-dot"></span>Channel 6</span>
+    <button class="watch-btn" data-src="https://live20.bozztv.com/giatvplayout7/giatv-208314/tracks-v1a1/mono.ts.m3u8">WATCH</button>
+  </div>
+</div>
+
+<footer>
+  <p>&copy; 2026 Tasin TV</p>
+</footer>
+
+<!-- hls.js: needed because most phone browsers don't play .m3u8 natively -->
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
+<script>
+  var video = document.getElementById('player');
+  var nowPlaying = document.getElementById('nowPlaying');
+  var hls = null;
+
+  function playChannel(src, name) {
+    if (!src) {
+      nowPlaying.textContent = 'Link not added yet for this channel';
+      return;
+    }
+    nowPlaying.textContent = 'Now playing: ' + name;
+
+    if (hls) {
+      hls.destroy();
+      hls = null;
+    }
+
+    if (Hls.isSupported()) {
+      hls = new Hls({
+        maxBufferLength: 15,       // small buffer - loads faster on slow connections
+        liveSyncDuration: 6,
+        manifestLoadingTimeOut: 8000,
+        manifestLoadingMaxRetry: 4
+      });
+      hls.loadSource(src);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, function () {
+        video.play();
+      });
+      hls.on(Hls.Events.ERROR, function (event, data) {
+        if (data.fatal) {
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              nowPlaying.textContent = 'Connection issue, retrying: ' + name;
+              hls.startLoad();
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              hls.recoverMediaError();
+              break;
+            default:
+              nowPlaying.textContent = 'Could not load: ' + name;
+              break;
+          }
+        }
+      });
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      // Safari / iOS native HLS support
+      video.src = src;
+      video.addEventListener('loadedmetadata', function () {
+        video.play();
+      });
+    } else {
+      nowPlaying.textContent = 'Live streaming is not supported in this browser';
+    }
+  }
+
+  function activateButton(btn) {
+    var src = btn.getAttribute('data-src');
+    var name = btn.closest('.channel-item').querySelector('.channel-name').textContent.trim();
+    playChannel(src, name);
+    window.scrollTo(0, 0);
+  }
+
+  document.querySelectorAll('.watch-btn').forEach(function (btn) {
+    // Standard click - works for touch and most feature phone browsers
+    btn.addEventListener('click', function () {
+      activateButton(btn);
+    });
+    // Explicit key handling - some feature phone browsers (KaiOS/older Opera)
+    // need this to register the center/OK key press as an activation
+    btn.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.keyCode === 13 || e.keyCode === 23) {
+        e.preventDefault();
+        activateButton(btn);
+      }
+    });
+  });
+
+  // Put focus on the first channel button on load, so a single press
+  // of the phone's OK/center key immediately plays Tasin TV
+  window.addEventListener('load', function () {
+    var firstBtn = document.querySelector('.watch-btn');
+    if (firstBtn) firstBtn.focus();
+  });
+</script>
+
+</body>
+</html>
