@@ -47,6 +47,50 @@
     margin: 6px;
     background: #000;
     border: 1px solid #262a33;
+    position: relative;
+    min-height: 135px;
+  }
+  .loading-spinner {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 135px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #0d0f14;
+    z-index: 10;
+  }
+  .spinner-ring {
+    position: relative;
+    width: 22px;
+    height: 22px;
+  }
+  .spin-dot {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 4px;
+    height: 4px;
+    margin: -2px 0 0 -2px;
+    background: #e6c300;
+    border-radius: 50%;
+    opacity: 0.25;
+    animation: spinDotFade 1s infinite ease-in-out;
+  }
+  /* 8 dots placed evenly around a circle of radius 10px */
+  .spin-dot:nth-child(1) { transform: translate(0px, -10px);    animation-delay: 0s; }
+  .spin-dot:nth-child(2) { transform: translate(7px, -7px);     animation-delay: 0.125s; }
+  .spin-dot:nth-child(3) { transform: translate(10px, 0px);     animation-delay: 0.25s; }
+  .spin-dot:nth-child(4) { transform: translate(7px, 7px);      animation-delay: 0.375s; }
+  .spin-dot:nth-child(5) { transform: translate(0px, 10px);     animation-delay: 0.5s; }
+  .spin-dot:nth-child(6) { transform: translate(-7px, 7px);     animation-delay: 0.625s; }
+  .spin-dot:nth-child(7) { transform: translate(-10px, 0px);    animation-delay: 0.75s; }
+  .spin-dot:nth-child(8) { transform: translate(-7px, -7px);    animation-delay: 0.875s; }
+  @keyframes spinDotFade {
+    0%, 100% { opacity: 0.25; }
+    50% { opacity: 1; }
   }
   video {
     width: 100%;
@@ -144,6 +188,18 @@
 
 <div class="player-wrap">
   <video id="player" controls playsinline preload="none"></video>
+  <div class="loading-spinner" id="loadingSpinner" style="display:none;">
+    <div class="spinner-ring">
+      <span class="spin-dot"></span>
+      <span class="spin-dot"></span>
+      <span class="spin-dot"></span>
+      <span class="spin-dot"></span>
+      <span class="spin-dot"></span>
+      <span class="spin-dot"></span>
+      <span class="spin-dot"></span>
+      <span class="spin-dot"></span>
+    </div>
+  </div>
   <div class="player-label" id="nowPlaying">Select a channel</div>
 </div>
 <div class="direct-link-wrap" id="directLinkWrap" style="display:none; margin:0 10px 10px 10px;">
@@ -184,15 +240,15 @@
     <button class="watch-btn" data-src="https://tvsen5.aynaott.com/banglavision/tracks-v1a1/mono.ts.m3u8?e=1782665440">WATCH</button>
   </div>
   <div class="channel-item">
-    <span class="channel-name"><span class="channel-num">#9</span>Boishakhi Tv</span>
-    <button class="watch-btn" data-src="https://boishakhi.sonarbanglatv.com/boishakhi/boishakhitv/index.m3u8">WATCH</button>
+    <span class="channel-name"><span class="channel-num">#9</span>Deepto TV</span>
+    <button class="watch-btn" data-src="https://byphdgllyk.gpcdn.net/hls/deeptotv/0_1/index.m3u8?sessId=1961629">WATCH</button>
   </div>
   <div class="channel-item">
-    <span class="channel-name"><span class="channel-num">#10</span>Colors Bangla</span>
-    <button class="watch-btn" data-src="https://footfytv.pro/proxy/direct?url=http://103.165.93.31:8095/colorsBangla/tracks-v1a1/mono.m3u8">WATCH</button>
+    <span class="channel-name"><span class="channel-num">#10</span>Indigo TV</span>
+    <button class="watch-btn" data-src="https://n14.cdn.indigo.live/kbl/tracks-v1a1/mono.m3u8">WATCH</button>
   </div>
   <div class="channel-item">
-    <span class="channel-name"><span class="channel-num">#11</span>Deepto Tv</span>
+    <span class="channel-name"><span class="channel-num">#11</span>Channel I</span>
     <button class="watch-btn" data-src="https://byphdgllyk.gpcdn.net/hls/deeptotv/0_1/index.m3u8?sessId=1961629">WATCH</button>
   </div>
   <div class="channel-item">
@@ -238,9 +294,17 @@
 <script>
   var video = document.getElementById('player');
   var nowPlaying = document.getElementById('nowPlaying');
+  var loadingSpinner = document.getElementById('loadingSpinner');
   var directLinkWrap = document.getElementById('directLinkWrap');
   var directLink = document.getElementById('directLink');
   var hls = null;
+
+  function showSpinner() {
+    loadingSpinner.style.display = 'flex';
+  }
+  function hideSpinner() {
+    loadingSpinner.style.display = 'none';
+  }
   var hlsScriptLoaded = false;
   var hlsScriptLoading = false;
 
@@ -254,6 +318,7 @@
   function startHls(src, name, session) {
     if (session !== currentSession) return; // channel changed since this was queued
     if (typeof Hls === 'undefined' || !Hls.isSupported()) {
+      hideSpinner();
       nowPlaying.textContent = 'Live streaming is not supported in this browser';
       showDirectLink(src);
       return;
@@ -272,6 +337,7 @@
     hls.attachMedia(video);
     hls.on(Hls.Events.MANIFEST_PARSED, function () {
       if (session !== currentSession) return;
+      hideSpinner();
       video.play();
     });
     hls.on(Hls.Events.ERROR, function (event, data) {
@@ -286,6 +352,7 @@
             hls.recoverMediaError();
             break;
           default:
+            hideSpinner();
             nowPlaying.textContent = 'Could not load: ' + name;
             showDirectLink(src);
             break;
@@ -313,6 +380,7 @@
     s.onerror = function () {
       hlsScriptLoading = false;
       if (session !== currentSession) return;
+      hideSpinner();
       nowPlaying.textContent = 'Could not load player: ' + name;
       showDirectLink(src);
     };
@@ -326,10 +394,12 @@
     if (!src) {
       nowPlaying.textContent = 'Link not added yet for this channel';
       directLinkWrap.style.display = 'none';
+      hideSpinner();
       return;
     }
     nowPlaying.textContent = 'Now playing: ' + name;
     directLinkWrap.style.display = 'none';
+    showSpinner();
 
     if (hls) {
       hls.destroy();
@@ -357,6 +427,7 @@
       }
       nowPlaying.textContent = 'Now playing: ' + name;
       directLinkWrap.style.display = 'none';
+      hideSpinner();
       video.removeEventListener('playing', markNativeWorking);
       video.removeEventListener('canplay', markNativeWorking);
     };
