@@ -59,8 +59,12 @@
     padding: 4px 6px;
     font-size: 10px;
     background: #14171f;
-    color: #fff;
+    color: #e6c300;
     border-top: 1px solid #262a33;
+    min-height: 18px;
+    display: flex;
+    align-items: center;
+    font-weight: bold;
   }
   .direct-link {
     display: block;
@@ -115,11 +119,15 @@
     font-size: 10px;
     font-weight: bold;
     flex-shrink: 0;
+    cursor: pointer;
   }
   .watch-btn:focus {
-    outline: 2px solid #ffffff;
+    outline: 3px solid #ffffff;
     background: #f5dc4d;
     color: #1a1a1a;
+  }
+  .watch-btn:active {
+    background: #fce98e;
   }
   footer {
     text-align: center;
@@ -249,12 +257,51 @@
     directLinkWrap.style.display = 'block';
   }
 
+  // CORS proxy services for feature phones (multiple fallbacks)
+  var proxyServices = [
+    function(src) { return 'https://corsproxy.io/?' + encodeURIComponent(src); },
+    function(src) { return 'https://api.allorigins.win/raw?url=' + encodeURIComponent(src); },
+    function(src) { return 'https://thingproxy.freeboard.io/fetch/' + encodeURIComponent(src); }
+  ];
+
+  function tryProxyPlayback(src, name, proxyIndex) {
+    if (proxyIndex >= proxyServices.length) {
+      nowPlaying.textContent = 'Could not load: ' + name;
+      showDirectLink(src);
+      return;
+    }
+    
+    nowPlaying.textContent = 'Connecting (' + (proxyIndex + 1) + '): ' + name;
+    var proxySrc = proxyServices[proxyIndex](src);
+    
+    video.src = proxySrc;
+    video.load();
+    
+    var timeout = setTimeout(function() {
+      if (video.readyState < 2) {
+        tryProxyPlayback(src, name, proxyIndex + 1);
+      }
+    }, 2500);
+    
+    var onPlaying = function() {
+      clearTimeout(timeout);
+      video.removeEventListener('playing', onPlaying);
+    };
+    video.addEventListener('playing', onPlaying, { once: true });
+    
+    video.play().catch(function() {
+      // Silent - may be autoplay restriction
+    });
+  }
+
   function loadHlsThenPlay(src, name) {
     if (hlsScriptLoading) return;
     hlsScriptLoading = true;
-    nowPlaying.textContent = 'Loading player: ' + name;
+    nowPlaying.textContent = 'Loading player...';
+    
     var s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js';
+    s.src = 'https://cdn.jsdelivr.net/npm/hls.js@1.4.14/dist/hls.min.js';
+    s.async = true;
     s.onload = function () {
       hlsScriptLoaded = true;
       hlsScriptLoading = false;
@@ -262,50 +309,66 @@
     };
     s.onerror = function () {
       hlsScriptLoading = false;
-      nowPlaying.textContent = 'Could not load player: ' + name;
-      showDirectLink(src);
+      tryProxyPlayback(src, name, 0);
     };
     document.body.appendChild(s);
   }
 
   function startHls(src, name) {
-    if (typeof Hls === 'undefined' || !Hls.isSupported()) {
-      nowPlaying.textContent = 'Live streaming is not supported in this browser';
-      showDirectLink(src);
+    if (typeof Hls === 'undefined') {
+      tryProxyPlayback(src, name, 0);
       return;
     }
+    
+    if (!Hls.isSupported()) {
+      tryProxyPlayback(src, name, 0);
+      return;
+    }
+    
     if (hls) {
       hls.destroy();
       hls = null;
     }
-    hls = new Hls({
-      maxBufferLength: 12,        // small buffer - loads faster on slow/weak connections
-      liveSyncDuration: 6,
-      manifestLoadingTimeOut: 8000,
-      manifestLoadingMaxRetry: 4
-    });
-    hls.loadSource(src);
-    hls.attachMedia(video);
-    hls.on(Hls.Events.MANIFEST_PARSED, function () {
-      video.play();
-    });
-    hls.on(Hls.Events.ERROR, function (event, data) {
-      if (data.fatal) {
-        switch (data.type) {
-          case Hls.ErrorTypes.NETWORK_ERROR:
-            nowPlaying.textContent = 'Connection issue, retrying: ' + name;
-            hls.startLoad();
-            break;
-          case Hls.ErrorTypes.MEDIA_ERROR:
-            hls.recoverMediaError();
-            break;
-          default:
-            nowPlaying.textContent = 'Could not load: ' + name;
-            showDirectLink(src);
-            break;
+    
+    try {
+      hls = new Hls({
+        maxBufferLength: 10,
+        maxMaxBufferLength: 20,
+        liveSyncDuration: 3,
+        manifestLoadingTimeOut: 6000,
+        manifestLoadingMaxRetry: 2,
+        fragLoadingTimeOut: 6000,
+        fragLoadingMaxRetry: 1,
+        lowLatencyMode: true
+      });
+      
+      hls.loadSource(src);
+      hls.attachMedia(video);
+      
+      var hlsTimeout = setTimeout(function() {
+        if (video.readyState < 2) {
+          if (hls) hls.destroy();
+          hls = null;
+          tryProxyPlayback(src, name, 0);
         }
-      }
-    });
+      }, 4000);
+      
+      hls.on(Hls.Events.MANIFEST_PARSED, function () {
+        clearTimeout(hlsTimeout);
+        video.play().catch(function() {});
+      });
+      
+      hls.on(Hls.Events.ERROR, function (event, data) {
+        if (data.fatal) {
+          clearTimeout(hlsTimeout);
+          if (hls) hls.destroy();
+          hls = null;
+          tryProxyPlayback(src, name, 0);
+        }
+      });
+    } catch(e) {
+      tryProxyPlayback(src, name, 0);
+    }
   }
 
   function playChannel(src, name) {
@@ -314,7 +377,8 @@
       directLinkWrap.style.display = 'none';
       return;
     }
-    nowPlaying.textContent = 'Now playing: ' + name;
+    
+    nowPlaying.textContent = 'Starting: ' + name;
     directLinkWrap.style.display = 'none';
 
     if (hls) {
@@ -322,37 +386,36 @@
       hls = null;
     }
 
-    // Step 1: try native playback first. This is the path cloud/proxy
-    // browsers (Puffin, UC Browser Turbo, Opera Mini extreme, etc.) and
-    // iOS Safari use - the server or OS handles the actual HLS decoding,
-    // so no in-page JS video engine is needed at all.
+    // Step 1: Try native playback (for browsers that support HLS natively)
     video.src = src;
     video.load();
 
     var nativeWorked = false;
-
     var onPlaying = function () {
       nativeWorked = true;
       video.removeEventListener('playing', onPlaying);
     };
-    video.addEventListener('playing', onPlaying);
+    video.addEventListener('playing', onPlaying, { once: true });
 
     video.play().catch(function () {
-      // Autoplay might be blocked until user interacts - not necessarily
-      // a real failure, so wait for the timeout check below rather than
-      // falling back immediately.
+      // Silent - autoplay might be restricted
     });
 
-    // Step 2: after a short grace period, if native playback never
-    // started, fall back to hls.js (loaded only now, on demand).
-    setTimeout(function () {
+    // Step 2: Quick fallback check - feature phones usually fail fast
+    // Give native playback only 1.8s before trying alternatives
+    var nativeTimeout = setTimeout(function () {
       if (!nativeWorked && video.readyState < 2) {
+        video.src = '';
         loadHlsThenPlay(src, name);
       }
-    }, 2500);
+    }, 1800);
+    
+    // If native playback starts, clear the fallback timeout
+    video.addEventListener('playing', function() {
+      clearTimeout(nativeTimeout);
+    }, { once: true });
 
-    // Always show the direct-open fallback link too, in case both
-    // in-page methods fail on a particular proxy browser.
+    // Always show the direct link as final fallback
     showDirectLink(src);
   }
 
