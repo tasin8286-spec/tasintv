@@ -59,12 +59,8 @@
     padding: 4px 6px;
     font-size: 10px;
     background: #14171f;
-    color: #e6c300;
+    color: #fff;
     border-top: 1px solid #262a33;
-    min-height: 18px;
-    display: flex;
-    align-items: center;
-    font-weight: bold;
   }
   .direct-link {
     display: block;
@@ -119,15 +115,9 @@
     font-size: 10px;
     font-weight: bold;
     flex-shrink: 0;
-    cursor: pointer;
   }
   .watch-btn:focus {
-    outline: 3px solid #ffffff;
-    background: #f5dc4d;
-    color: #1a1a1a;
-  }
-  .watch-btn:active {
-    background: #fce98e;
+    outline: 2px solid #ffffff;
   }
   footer {
     text-align: center;
@@ -241,211 +231,90 @@
   <p>&copy; 2026 Tasin TV</p>
 </footer>
 
-<!-- hls.js is loaded lazily only if native playback fails - keeps the -->
-<!-- initial page as light as possible for cloud/proxy browsers -->
 <script>
   var video = document.getElementById('player');
   var nowPlaying = document.getElementById('nowPlaying');
-  var directLinkWrap = document.getElementById('directLinkWrap');
   var directLink = document.getElementById('directLink');
+  var directLinkWrap = document.getElementById('directLinkWrap');
   var hls = null;
-  var hlsScriptLoaded = false;
-  var hlsScriptLoading = false;
-
-  function showDirectLink(src) {
-    directLink.href = src;
-    directLinkWrap.style.display = 'block';
-  }
-
-  // CORS proxy services for feature phones (multiple fallbacks)
-  var proxyServices = [
-    function(src) { return 'https://corsproxy.io/?' + encodeURIComponent(src); },
-    function(src) { return 'https://api.allorigins.win/raw?url=' + encodeURIComponent(src); },
-    function(src) { return 'https://thingproxy.freeboard.io/fetch/' + encodeURIComponent(src); }
-  ];
-
-  function tryProxyPlayback(src, name, proxyIndex) {
-    if (proxyIndex >= proxyServices.length) {
-      nowPlaying.textContent = 'Could not load: ' + name;
-      showDirectLink(src);
-      return;
-    }
-    
-    nowPlaying.textContent = 'Connecting (' + (proxyIndex + 1) + '): ' + name;
-    var proxySrc = proxyServices[proxyIndex](src);
-    
-    video.src = proxySrc;
-    video.load();
-    
-    var timeout = setTimeout(function() {
-      if (video.readyState < 2) {
-        tryProxyPlayback(src, name, proxyIndex + 1);
-      }
-    }, 2500);
-    
-    var onPlaying = function() {
-      clearTimeout(timeout);
-      video.removeEventListener('playing', onPlaying);
-    };
-    video.addEventListener('playing', onPlaying, { once: true });
-    
-    video.play().catch(function() {
-      // Silent - may be autoplay restriction
-    });
-  }
-
-  function loadHlsThenPlay(src, name) {
-    if (hlsScriptLoading) return;
-    hlsScriptLoading = true;
-    nowPlaying.textContent = 'Loading player...';
-    
-    var s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/hls.js@1.4.14/dist/hls.min.js';
-    s.async = true;
-    s.onload = function () {
-      hlsScriptLoaded = true;
-      hlsScriptLoading = false;
-      startHls(src, name);
-    };
-    s.onerror = function () {
-      hlsScriptLoading = false;
-      tryProxyPlayback(src, name, 0);
-    };
-    document.body.appendChild(s);
-  }
-
-  function startHls(src, name) {
-    if (typeof Hls === 'undefined') {
-      tryProxyPlayback(src, name, 0);
-      return;
-    }
-    
-    if (!Hls.isSupported()) {
-      tryProxyPlayback(src, name, 0);
-      return;
-    }
-    
-    if (hls) {
-      hls.destroy();
-      hls = null;
-    }
-    
-    try {
-      hls = new Hls({
-        maxBufferLength: 10,
-        maxMaxBufferLength: 20,
-        liveSyncDuration: 3,
-        manifestLoadingTimeOut: 6000,
-        manifestLoadingMaxRetry: 2,
-        fragLoadingTimeOut: 6000,
-        fragLoadingMaxRetry: 1,
-        lowLatencyMode: true
-      });
-      
-      hls.loadSource(src);
-      hls.attachMedia(video);
-      
-      var hlsTimeout = setTimeout(function() {
-        if (video.readyState < 2) {
-          if (hls) hls.destroy();
-          hls = null;
-          tryProxyPlayback(src, name, 0);
-        }
-      }, 4000);
-      
-      hls.on(Hls.Events.MANIFEST_PARSED, function () {
-        clearTimeout(hlsTimeout);
-        video.play().catch(function() {});
-      });
-      
-      hls.on(Hls.Events.ERROR, function (event, data) {
-        if (data.fatal) {
-          clearTimeout(hlsTimeout);
-          if (hls) hls.destroy();
-          hls = null;
-          tryProxyPlayback(src, name, 0);
-        }
-      });
-    } catch(e) {
-      tryProxyPlayback(src, name, 0);
-    }
-  }
 
   function playChannel(src, name) {
-    if (!src) {
-      nowPlaying.textContent = 'Link not added yet for this channel';
-      directLinkWrap.style.display = 'none';
-      return;
-    }
+    if (!src) return;
     
-    nowPlaying.textContent = 'Starting: ' + name;
+    nowPlaying.textContent = 'Loading: ' + name;
     directLinkWrap.style.display = 'none';
-
+    
     if (hls) {
       hls.destroy();
       hls = null;
     }
 
-    // Step 1: Try native playback (for browsers that support HLS natively)
+    // Try native playback
     video.src = src;
     video.load();
+    video.play().catch(function() {});
 
-    var nativeWorked = false;
-    var onPlaying = function () {
-      nativeWorked = true;
-      video.removeEventListener('playing', onPlaying);
-    };
-    video.addEventListener('playing', onPlaying, { once: true });
+    // Show direct link
+    directLink.href = src;
+    directLinkWrap.style.display = 'block';
 
-    video.play().catch(function () {
-      // Silent - autoplay might be restricted
-    });
-
-    // Step 2: Quick fallback check - feature phones usually fail fast
-    // Give native playback only 1.8s before trying alternatives
-    var nativeTimeout = setTimeout(function () {
-      if (!nativeWorked && video.readyState < 2) {
-        video.src = '';
-        loadHlsThenPlay(src, name);
+    // Fallback to HLS.js after 2 seconds
+    setTimeout(function() {
+      if (video.readyState < 2) {
+        loadHls(src, name);
       }
-    }, 1800);
-    
-    // If native playback starts, clear the fallback timeout
-    video.addEventListener('playing', function() {
-      clearTimeout(nativeTimeout);
-    }, { once: true });
+    }, 2000);
 
-    // Always show the direct link as final fallback
-    showDirectLink(src);
-  }
-
-  function activateButton(btn) {
-    var src = btn.getAttribute('data-src');
-    var name = btn.closest('.channel-item').querySelector('.channel-name').textContent.trim();
-    playChannel(src, name);
     window.scrollTo(0, 0);
   }
 
-  document.querySelectorAll('.watch-btn').forEach(function (btn) {
-    // Standard click - works for touch and most feature phone browsers
-    btn.addEventListener('click', function () {
-      activateButton(btn);
+  function loadHls(src, name) {
+    var script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/hls.js@1.4.14/dist/hls.min.js';
+    script.onload = function() {
+      if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+        if (hls) hls.destroy();
+        hls = new Hls({
+          maxBufferLength: 10,
+          liveSyncDuration: 3,
+          manifestLoadingTimeOut: 5000
+        });
+        hls.loadSource(src);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, function() {
+          video.play().catch(function() {});
+        });
+        hls.on(Hls.Events.ERROR, function(e, data) {
+          if (data.fatal) {
+            nowPlaying.textContent = 'Stream unavailable: ' + name;
+          }
+        });
+      } else {
+        nowPlaying.textContent = 'Player not supported';
+      }
+    };
+    document.body.appendChild(script);
+  }
+
+  // Button clicks
+  document.querySelectorAll('.watch-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var src = btn.getAttribute('data-src');
+      var name = btn.closest('.channel-item').querySelector('.channel-name').textContent.trim();
+      playChannel(src, name);
     });
-    // Explicit key handling - some feature phone browsers (KaiOS/older Opera)
-    // need this to register the center/OK key press as an activation
-    btn.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' || e.keyCode === 13 || e.keyCode === 23) {
+    btn.addEventListener('keydown', function(e) {
+      if (e.keyCode === 13 || e.keyCode === 23) {
         e.preventDefault();
-        activateButton(btn);
+        this.click();
       }
     });
   });
 
-  // Put focus on the first channel button on load, so a single press
-  // of the phone's OK/center key immediately plays the top channel
-  window.addEventListener('load', function () {
-    var firstBtn = document.querySelector('.watch-btn');
-    if (firstBtn) firstBtn.focus();
+  // Focus first button
+  window.addEventListener('load', function() {
+    var btn = document.querySelector('.watch-btn');
+    if (btn) btn.focus();
   });
 </script>
 
