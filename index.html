@@ -238,7 +238,7 @@
   var directLinkWrap = document.getElementById('directLinkWrap');
   var hls = null;
 
-  function playChannel(src, name) {
+  function playChannel(src, name, btn) {
     if (!src) return;
     
     nowPlaying.textContent = 'Loading: ' + name;
@@ -249,16 +249,17 @@
       hls = null;
     }
 
-    // Try native playback
+    // Remember this channel
+    localStorage.setItem('lastChannel', name);
+    localStorage.setItem('lastScroll', window.scrollY);
+
     video.src = src;
     video.load();
     video.play().catch(function() {});
 
-    // Show direct link
     directLink.href = src;
     directLinkWrap.style.display = 'block';
 
-    // Fallback to HLS.js after 2 seconds
     setTimeout(function() {
       if (video.readyState < 2) {
         loadHls(src, name);
@@ -269,39 +270,27 @@
   }
 
   function loadHls(src, name) {
-    var script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/hls.js@1.4.14/dist/hls.min.js';
-    script.onload = function() {
+    var s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/hls.js@1.4.14/dist/hls.min.js';
+    s.onload = function() {
       if (typeof Hls !== 'undefined' && Hls.isSupported()) {
         if (hls) hls.destroy();
-        hls = new Hls({
-          maxBufferLength: 10,
-          liveSyncDuration: 3,
-          manifestLoadingTimeOut: 5000
-        });
+        hls = new Hls({maxBufferLength: 10, liveSyncDuration: 3});
         hls.loadSource(src);
         hls.attachMedia(video);
         hls.on(Hls.Events.MANIFEST_PARSED, function() {
           video.play().catch(function() {});
         });
-        hls.on(Hls.Events.ERROR, function(e, data) {
-          if (data.fatal) {
-            nowPlaying.textContent = 'Stream unavailable: ' + name;
-          }
-        });
-      } else {
-        nowPlaying.textContent = 'Player not supported';
       }
     };
-    document.body.appendChild(script);
+    document.body.appendChild(s);
   }
 
-  // Button clicks
   document.querySelectorAll('.watch-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
       var src = btn.getAttribute('data-src');
       var name = btn.closest('.channel-item').querySelector('.channel-name').textContent.trim();
-      playChannel(src, name);
+      playChannel(src, name, btn);
     });
     btn.addEventListener('keydown', function(e) {
       if (e.keyCode === 13 || e.keyCode === 23) {
@@ -311,10 +300,18 @@
     });
   });
 
-  // Focus first button
   window.addEventListener('load', function() {
-    var btn = document.querySelector('.watch-btn');
-    if (btn) btn.focus();
+    var lastChannel = localStorage.getItem('lastChannel');
+    var lastScroll = localStorage.getItem('lastScroll');
+    
+    if (lastScroll) {
+      setTimeout(function() {
+        window.scrollTo(0, parseInt(lastScroll));
+      }, 100);
+    }
+    
+    var firstBtn = document.querySelector('.watch-btn');
+    if (firstBtn) firstBtn.focus();
   });
 </script>
 
