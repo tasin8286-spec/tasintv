@@ -249,26 +249,10 @@
     directLinkWrap.style.display = 'block';
   }
 
-  function loadHlsThenPlay(src, name) {
-    if (hlsScriptLoading) return;
-    hlsScriptLoading = true;
-    nowPlaying.textContent = 'Loading player: ' + name;
-    var s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js';
-    s.onload = function () {
-      hlsScriptLoaded = true;
-      hlsScriptLoading = false;
-      startHls(src, name);
-    };
-    s.onerror = function () {
-      hlsScriptLoading = false;
-      nowPlaying.textContent = 'Could not load player: ' + name;
-      showDirectLink(src);
-    };
-    document.body.appendChild(s);
-  }
+  var currentSession = 0;
 
-  function startHls(src, name) {
+  function startHls(src, name, session) {
+    if (session !== currentSession) return; // channel changed since this was queued
     if (typeof Hls === 'undefined' || !Hls.isSupported()) {
       nowPlaying.textContent = 'Live streaming is not supported in this browser';
       showDirectLink(src);
@@ -287,9 +271,11 @@
     hls.loadSource(src);
     hls.attachMedia(video);
     hls.on(Hls.Events.MANIFEST_PARSED, function () {
+      if (session !== currentSession) return;
       video.play();
     });
     hls.on(Hls.Events.ERROR, function (event, data) {
+      if (session !== currentSession) return;
       if (data.fatal) {
         switch (data.type) {
           case Hls.ErrorTypes.NETWORK_ERROR:
@@ -308,7 +294,35 @@
     });
   }
 
+  function loadHlsThenPlay(src, name, session) {
+    if (session !== currentSession) return;
+    if (hlsScriptLoaded) {
+      startHls(src, name, session);
+      return;
+    }
+    if (hlsScriptLoading) return;
+    hlsScriptLoading = true;
+    nowPlaying.textContent = 'Loading player: ' + name;
+    var s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js';
+    s.onload = function () {
+      hlsScriptLoaded = true;
+      hlsScriptLoading = false;
+      startHls(src, name, session);
+    };
+    s.onerror = function () {
+      hlsScriptLoading = false;
+      if (session !== currentSession) return;
+      nowPlaying.textContent = 'Could not load player: ' + name;
+      showDirectLink(src);
+    };
+    document.body.appendChild(s);
+  }
+
   function playChannel(src, name) {
+    currentSession += 1;
+    var session = currentSession;
+
     if (!src) {
       nowPlaying.textContent = 'Link not added yet for this channel';
       directLinkWrap.style.display = 'none';
@@ -330,12 +344,24 @@
     video.load();
 
     var nativeWorked = false;
+    var fallbackTimer = null;
 
-    var onPlaying = function () {
+    var markNativeWorking = function () {
+      if (session !== currentSession) return;
       nativeWorked = true;
-      video.removeEventListener('playing', onPlaying);
+      // Native playback confirmed - clear any pending fallback and make
+      // sure the label reflects success even if it fired late.
+      if (fallbackTimer) {
+        clearTimeout(fallbackTimer);
+        fallbackTimer = null;
+      }
+      nowPlaying.textContent = 'Now playing: ' + name;
+      directLinkWrap.style.display = 'none';
+      video.removeEventListener('playing', markNativeWorking);
+      video.removeEventListener('canplay', markNativeWorking);
     };
-    video.addEventListener('playing', onPlaying);
+    video.addEventListener('playing', markNativeWorking);
+    video.addEventListener('canplay', markNativeWorking);
 
     video.play().catch(function () {
       // Autoplay might be blocked until user interacts - not necessarily
@@ -343,13 +369,14 @@
       // falling back immediately.
     });
 
-    // Step 2: after a short grace period, if native playback never
-    // started, fall back to hls.js (loaded only now, on demand).
-    setTimeout(function () {
+    // Step 2: after a grace period, if native playback never started
+    // (still no data at all), fall back to hls.js loaded on demand.
+    fallbackTimer = setTimeout(function () {
+      if (session !== currentSession) return;
       if (!nativeWorked && video.readyState < 2) {
-        loadHlsThenPlay(src, name);
+        loadHlsThenPlay(src, name, session);
       }
-    }, 2500);
+    }, 4000);
 
     // Always show the direct-open fallback link too, in case both
     // in-page methods fail on a particular proxy browser.
