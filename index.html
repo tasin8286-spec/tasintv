@@ -137,7 +137,26 @@ document.querySelectorAll('.watch-btn').forEach(function(b){
 b.addEventListener('click',function(){var s=b.getAttribute('data-src');play(s,b.closest('.channel-item').querySelector('.channel-name').textContent.trim());window.scrollTo(0,0);});
 b.addEventListener('keydown',function(e){if(e.keyCode===13||e.keyCode===23){e.preventDefault();this.click();}});
 });
-window.addEventListener('load',function(){var b=document.querySelector('.watch-btn');if(b)b.focus();});
+window.addEventListener('load',function(){
+var b=document.querySelector('.watch-btn');
+if(b)b.focus();
+// Restore scroll position
+var scrollPos=localStorage.getItem('tasinScrollPos');
+if(scrollPos){setTimeout(function(){window.scrollTo(0,parseInt(scrollPos));},100);}
+});
+
+// Save scroll position on every scroll
+window.addEventListener('scroll',function(){
+localStorage.setItem('tasinScrollPos',window.scrollY);
+});
+
+// Save last watched channel
+document.querySelectorAll('.watch-btn').forEach(function(b){
+b.addEventListener('click',function(){
+var channelName=b.closest('.channel-item').querySelector('.channel-name').textContent.trim();
+localStorage.setItem('tasinLastChannel',channelName);
+});
+});
 </script>
 
 </body>
